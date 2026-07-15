@@ -113,6 +113,37 @@ const parseList = (value = '') => String(value)
 
 const listToText = (value = []) => Array.isArray(value) ? value.join(', ') : '';
 
+const textToRows = (value = '') => {
+    const rows = parseList(value);
+
+    return rows.length ? rows : [''];
+};
+
+const rowsToText = (rows = []) => rows.map((row) => String(row || '').trim()).filter(Boolean).join(', ');
+
+const variantsToRows = (variants = []) => {
+    const rows = Array.isArray(variants)
+        ? variants.map((variant) => ({
+            size: variant.size || '',
+            color: variant.color || '',
+            price: variant.price_cents ? (Number(variant.price_cents) / 100).toFixed(2) : '',
+            image_url: variant.image_url || '',
+        }))
+        : [];
+
+    return rows.length ? rows : [{ size: '', color: '', price: '', image_url: '' }];
+};
+
+const variantRowsToText = (rows = []) => rows
+    .filter((variant) => variant.size || variant.color || variant.price || variant.image_url)
+    .map((variant) => [
+        variant.size || '',
+        variant.color || '',
+        variant.price || '',
+        variant.image_url || '',
+    ].join(' | '))
+    .join('\n');
+
 const variantsToText = (variants = []) => Array.isArray(variants)
     ? variants.map((variant) => [
         variant.size || '',
@@ -339,9 +370,11 @@ function App() {
         description: '',
         image_url: '',
         gallery_urls_text: '',
+        gallery_url_rows: [''],
         sizes_text: '',
         colors_text: '',
         variants_text: '',
+        variant_rows: [{ size: '', color: '', price: '', image_url: '' }],
         requires_shipping: false,
         shipping_weight_grams: '',
         price: '',
@@ -690,6 +723,88 @@ function App() {
         setNotice('Imagem enviada.');
     }
 
+    async function uploadStorefrontImages(files, applyUrls) {
+        const uploaded = [];
+
+        for (const file of Array.from(files || [])) {
+            const formData = new FormData();
+            formData.append('image', file);
+
+            const response = await fetch('/api/storefront-media', {
+                method: 'POST',
+                headers: { Accept: 'application/json', 'X-CSRF-TOKEN': csrfToken },
+                body: formData,
+            });
+            const data = await response.json();
+
+            if (response.ok && data.url) {
+                uploaded.push(data.url);
+            } else {
+                setNotice(data.message || 'Nao foi possivel enviar uma das imagens.');
+            }
+        }
+
+        if (uploaded.length) {
+            applyUrls(uploaded);
+            setNotice(`${uploaded.length} imagem(ns) enviada(s).`);
+        }
+    }
+
+    function setGalleryRows(rows) {
+        setProductForm((current) => ({
+            ...current,
+            gallery_url_rows: rows.length ? rows : [''],
+            gallery_urls_text: rowsToText(rows),
+        }));
+    }
+
+    function updateGalleryRow(index, value) {
+        const rows = [...(productForm.gallery_url_rows || [''])];
+        rows[index] = value;
+        setGalleryRows(rows);
+    }
+
+    function addGalleryRows(urls = ['']) {
+        const currentRows = (productForm.gallery_url_rows || ['']).filter((row) => String(row || '').trim());
+        setGalleryRows([...currentRows, ...urls]);
+    }
+
+    function removeGalleryRow(index) {
+        setGalleryRows((productForm.gallery_url_rows || ['']).filter((_, rowIndex) => rowIndex !== index));
+    }
+
+    function setVariantRows(rows) {
+        const nextRows = rows.length ? rows : [{ size: '', color: '', price: '', image_url: '' }];
+        setProductForm((current) => ({
+            ...current,
+            variant_rows: nextRows,
+            variants_text: variantRowsToText(nextRows),
+            colors_text: rowsToText([...new Set([
+                ...parseList(current.colors_text),
+                ...nextRows.map((variant) => variant.color).filter(Boolean),
+            ])]),
+            sizes_text: rowsToText([...new Set([
+                ...parseList(current.sizes_text),
+                ...nextRows.map((variant) => variant.size).filter(Boolean),
+            ])]),
+        }));
+    }
+
+    function updateVariantRow(index, field, value) {
+        const rows = [...(productForm.variant_rows || [])];
+        rows[index] = { ...(rows[index] || { size: '', color: '', price: '', image_url: '' }), [field]: value };
+        setVariantRows(rows);
+    }
+
+    function addVariantRow(row = { size: '', color: '', price: '', image_url: '' }) {
+        const rows = (productForm.variant_rows || []).filter((variant) => variant.size || variant.color || variant.price || variant.image_url);
+        setVariantRows([...rows, row]);
+    }
+
+    function removeVariantRow(index) {
+        setVariantRows((productForm.variant_rows || []).filter((_, rowIndex) => rowIndex !== index));
+    }
+
 
     function resetProductForm() {
         setEditingProductId(null);
@@ -701,9 +816,11 @@ function App() {
             description: '',
             image_url: '',
             gallery_urls_text: '',
+            gallery_url_rows: [''],
             sizes_text: '',
             colors_text: '',
             variants_text: '',
+            variant_rows: [{ size: '', color: '', price: '', image_url: '' }],
             requires_shipping: false,
             shipping_weight_grams: '',
             price: '',
@@ -725,9 +842,11 @@ function App() {
             description: '',
             image_url: '',
             gallery_urls_text: '',
+            gallery_url_rows: [''],
             sizes_text: '',
             colors_text: '',
             variants_text: '',
+            variant_rows: [{ size: '', color: '', price: '', image_url: '' }],
             requires_shipping: false,
             shipping_weight_grams: '',
             price: '',
@@ -751,9 +870,11 @@ function App() {
             description: product.description || '',
             image_url: product.image_url || '',
             gallery_urls_text: listToText(product.gallery_urls),
+            gallery_url_rows: textToRows(listToText(product.gallery_urls)),
             sizes_text: listToText(product.options?.sizes),
             colors_text: listToText(product.options?.colors),
             variants_text: variantsToText(product.options?.variants),
+            variant_rows: variantsToRows(product.options?.variants),
             requires_shipping: Boolean(product.requires_shipping),
             shipping_weight_grams: product.shipping_weight_grams ? String(product.shipping_weight_grams) : '',
             price: product.price_cents ? String(product.price_cents / 100) : '',
@@ -1759,23 +1880,70 @@ function App() {
                                     <input value={productForm.image_url} onChange={(event) => setProductForm({ ...productForm, image_url: event.target.value })} placeholder="https://..." />
                                     <input type="file" accept="image/*" onChange={(event) => uploadStorefrontImage(event.target.files?.[0], (url) => setProductForm((current) => ({ ...current, image_url: url })))} />
                                 </Field>
-                                <Field label="Galeria (URLs separadas por virgula)">
-                                    <input value={productForm.gallery_urls_text} onChange={(event) => setProductForm({ ...productForm, gallery_urls_text: event.target.value })} placeholder="https://foto1, https://foto2" />
-                                </Field>
                                 <Field label="Tamanhos">
                                     <input value={productForm.sizes_text} onChange={(event) => setProductForm({ ...productForm, sizes_text: event.target.value })} placeholder="P, M, G, 42" />
                                 </Field>
                                 <Field label="Cores">
                                     <input value={productForm.colors_text} onChange={(event) => setProductForm({ ...productForm, colors_text: event.target.value })} placeholder="Preto, Azul, Vermelho" />
                                 </Field>
-                                <Field label="Variacoes com preco/imagem">
-                                    <textarea
-                                        value={productForm.variants_text}
-                                        onChange={(event) => setProductForm({ ...productForm, variants_text: event.target.value })}
-                                        rows="4"
-                                        placeholder={'256GB | Preto | 6749.10 | https://foto-preto.jpg\n512GB | Azul | 7499.90 | https://foto-azul.jpg'}
-                                    />
-                                </Field>
+                            </div>
+                            <div className="media-array-editor">
+                                <div className="array-editor-title">
+                                    <strong>Galeria do produto</strong>
+                                    <span>Adicione várias fotos por link ou selecione várias imagens do dispositivo.</span>
+                                </div>
+                                <div className="array-actions">
+                                    <button className="secondary-button compact-secondary" type="button" onClick={() => addGalleryRows([''])}>
+                                        <Plus size={16} />
+                                        Adicionar link
+                                    </button>
+                                    <label className="secondary-button compact-secondary file-action">
+                                        <PackagePlus size={16} />
+                                        Escolher fotos
+                                        <input type="file" accept="image/*" multiple onChange={(event) => uploadStorefrontImages(event.target.files, (urls) => addGalleryRows(urls))} />
+                                    </label>
+                                </div>
+                                <div className="array-row-list">
+                                    {(productForm.gallery_url_rows || ['']).map((url, index) => (
+                                        <div className="array-row media-url-row" key={`gallery-${index}`}>
+                                            <input value={url} onChange={(event) => updateGalleryRow(index, event.target.value)} placeholder="https://foto-do-produto.jpg" />
+                                            {url && <img src={url} alt="" />}
+                                            <button className="icon-button danger-action" type="button" title="Remover foto" onClick={() => removeGalleryRow(index)}>
+                                                <Trash2 size={17} />
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                            <div className="media-array-editor">
+                                <div className="array-editor-title">
+                                    <strong>Variações por cor/tamanho</strong>
+                                    <span>Configure preço e foto específica. Ao escolher uma cor, a loja usa a imagem da variação.</span>
+                                </div>
+                                <div className="array-actions">
+                                    <button className="secondary-button compact-secondary" type="button" onClick={() => addVariantRow()}>
+                                        <Plus size={16} />
+                                        Adicionar variação
+                                    </button>
+                                </div>
+                                <div className="variant-row-list">
+                                    {(productForm.variant_rows || [{ size: '', color: '', price: '', image_url: '' }]).map((variant, index) => (
+                                        <div className="variant-edit-row" key={`variant-${index}`}>
+                                            <input value={variant.size} onChange={(event) => updateVariantRow(index, 'size', event.target.value)} placeholder="256GB, P, M..." />
+                                            <input value={variant.color} onChange={(event) => updateVariantRow(index, 'color', event.target.value)} placeholder="Preto, Azul..." />
+                                            <input type="number" min="0" step="0.01" value={variant.price} onChange={(event) => updateVariantRow(index, 'price', event.target.value)} placeholder="Preco" />
+                                            <input value={variant.image_url} onChange={(event) => updateVariantRow(index, 'image_url', event.target.value)} placeholder="https://foto-da-cor.jpg" />
+                                            <label className="icon-button file-icon-action" title="Escolher imagem">
+                                                <PackagePlus size={17} />
+                                                <input type="file" accept="image/*" onChange={(event) => uploadStorefrontImage(event.target.files?.[0], (url) => updateVariantRow(index, 'image_url', url))} />
+                                            </label>
+                                            {variant.image_url && <img src={variant.image_url} alt="" />}
+                                            <button className="icon-button danger-action" type="button" title="Remover variação" onClick={() => removeVariantRow(index)}>
+                                                <Trash2 size={17} />
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
                             </div>
                             <div className="form-grid">
                                 <label className="toggle">
