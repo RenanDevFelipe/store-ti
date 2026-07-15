@@ -9,8 +9,10 @@ use Illuminate\Http\Request;
 
 class PaymentSettingsController extends Controller
 {
-    public function show(): JsonResponse
+    public function show(Request $request): JsonResponse
     {
+        abort_if($request->user()->role === 'seller', 403);
+
         $settings = PaymentSetting::mercadoPago();
 
         return response()->json([
@@ -24,6 +26,8 @@ class PaymentSettingsController extends Controller
 
     public function update(Request $request): JsonResponse
     {
+        abort_if($request->user()->role === 'seller', 403);
+
         $data = $request->validate([
             'access_token' => ['nullable', 'string', 'max:2000'],
             'public_key' => ['nullable', 'string', 'max:255'],

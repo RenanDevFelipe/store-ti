@@ -27,6 +27,7 @@ class SalesLinkController extends Controller
         return response()->json(
             SalesLink::with(['product', 'payments' => fn ($query) => $query->latest()])
                 ->whereHas('product', fn ($query) => $query->where('tenant_setting_id', $tenantId))
+                ->when($request->user()->role === 'seller', fn ($query) => $query->where('user_id', $request->user()->id))
                 ->latest()
                 ->get()
                 ->map(fn (SalesLink $link) => $this->present($link))
@@ -61,6 +62,7 @@ class SalesLinkController extends Controller
 
         $salesLink = SalesLink::create([
             'product_id' => $product->id,
+            'user_id' => $request->user()->id,
             'title' => $data['title'],
             'customer_email' => $data['customer_email'] ?? null,
             'quantity' => $data['quantity'],
@@ -183,5 +185,9 @@ class SalesLinkController extends Controller
         $salesLink->loadMissing('product');
 
         abort_unless($salesLink->product?->tenant_setting_id === $this->tenantId($request), 403);
+
+        if ($request->user()->role === 'seller') {
+            abort_unless($salesLink->user_id === $request->user()->id, 403);
+        }
     }
 }

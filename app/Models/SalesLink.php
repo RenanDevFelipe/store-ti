@@ -16,6 +16,7 @@ class SalesLink extends Model
     protected $fillable = [
         'public_id',
         'product_id',
+        'user_id',
         'customer_id',
         'customer_address_id',
         'title',
@@ -55,6 +56,11 @@ class SalesLink extends Model
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class);
+    }
+
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
     }
 
     public function customer(): BelongsTo

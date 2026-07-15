@@ -16,6 +16,8 @@ class NotificationSettingsController extends Controller
 {
     public function show(): JsonResponse
     {
+        abort_if(request()->user()->role === 'seller', 403);
+
         $provider = NotificationSetting::evolution();
         $tenant = TenantSetting::current();
         $settings = TenantNotificationSetting::forTenant($tenant->id);
@@ -43,6 +45,8 @@ class NotificationSettingsController extends Controller
 
     public function update(Request $request): JsonResponse
     {
+        abort_if($request->user()->role === 'seller', 403);
+
         $data = $request->validate([
             'enabled' => ['required', 'boolean'],
             'provider_enabled' => ['nullable', 'boolean'],
@@ -121,6 +125,8 @@ class NotificationSettingsController extends Controller
 
     public function test(Request $request, EvolutionNotificationService $notifications): JsonResponse
     {
+        abort_if($request->user()->role === 'seller', 403);
+
         $data = $request->validate([
             'phone' => ['required', 'string', 'max:30'],
             'name' => ['nullable', 'string', 'max:120'],

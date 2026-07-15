@@ -14,6 +14,8 @@ class ReportsController extends Controller
 {
     public function __invoke(Request $request): JsonResponse
     {
+        abort_if($request->user()->role === 'seller', 403);
+
         $data = $request->validate([
             'from' => ['nullable', 'date'],
             'to' => ['nullable', 'date', 'after_or_equal:from'],

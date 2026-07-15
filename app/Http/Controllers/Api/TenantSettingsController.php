@@ -26,6 +26,8 @@ class TenantSettingsController extends Controller
 
     public function show(Request $request): JsonResponse
     {
+        abort_if($request->user()->role === 'seller', 403);
+
         $selectedTenant = $request->user()?->isSuperAdmin()
             ? TenantSetting::selectedForSuperAdmin()
             : TenantSetting::current();
@@ -82,6 +84,8 @@ class TenantSettingsController extends Controller
 
     public function update(Request $request): JsonResponse
     {
+        abort_if($request->user()->role === 'seller', 403);
+
         $tenant = TenantSetting::current();
         $data = $this->validatedTenant($request, $tenant);
 

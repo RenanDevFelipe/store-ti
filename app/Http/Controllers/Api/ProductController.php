@@ -23,6 +23,8 @@ class ProductController extends Controller
 
     public function store(Request $request): JsonResponse
     {
+        abort_if($request->user()->role === 'seller', 403);
+
         $data = $request->validate([
             'name' => ['required', 'string', 'max:160'],
             'sku' => ['nullable', 'string', 'max:80', 'unique:products,sku'],
@@ -78,6 +80,8 @@ class ProductController extends Controller
 
     public function update(Request $request, Product $product): JsonResponse
     {
+        abort_if($request->user()->role === 'seller', 403);
+
         if (blank($product->tenant_setting_id)) {
             $product->forceFill(['tenant_setting_id' => $this->tenantId($request)])->save();
         }
@@ -137,6 +141,8 @@ class ProductController extends Controller
 
     public function destroy(Product $product): JsonResponse
     {
+        abort_if(request()->user()->role === 'seller', 403);
+
         if (blank($product->tenant_setting_id)) {
             $product->forceFill(['tenant_setting_id' => $this->tenantId(request())])->save();
         }

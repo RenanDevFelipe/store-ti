@@ -49,7 +49,9 @@ class DashboardController extends Controller
 
         $productQuery = Product::where('tenant_setting_id', $tenantId);
         $salesQuery = SalesLink::whereHas('product', fn ($query) => $query->where('tenant_setting_id', $tenantId));
+        $salesQuery->when($request->user()->role === 'seller', fn ($query) => $query->where('user_id', $request->user()->id));
         $paymentQuery = Payment::whereHas('salesLink.product', fn ($query) => $query->where('tenant_setting_id', $tenantId));
+        $paymentQuery->when($request->user()->role === 'seller', fn ($query) => $query->whereHas('salesLink', fn ($salesLinkQuery) => $salesLinkQuery->where('user_id', $request->user()->id)));
 
         $revenue = (clone $paymentQuery)->where('status', 'approved')->sum('amount_cents');
         $paidSales = (clone $salesQuery)->where('status', 'paid')->count();

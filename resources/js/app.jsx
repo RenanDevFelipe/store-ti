@@ -443,20 +443,21 @@ function App() {
 
     async function loadData() {
         setLoading(true);
-        const [meResponse, productsResponse, linksResponse, statsResponse, settingsResponse, notificationsResponse, tenantResponse] = await Promise.all([
-            fetch('/api/me', { headers: { Accept: 'application/json' } }),
+        const meResponse = await fetch('/api/me', { headers: { Accept: 'application/json' } });
+        const me = await meResponse.json();
+        const isSeller = me.role === 'seller';
+        const [productsResponse, linksResponse, statsResponse, settingsResponse, notificationsResponse, tenantResponse] = await Promise.all([
             fetch('/api/products', { headers: { Accept: 'application/json' } }),
             fetch('/api/sales-links', { headers: { Accept: 'application/json' } }),
             fetch('/api/dashboard', { headers: { Accept: 'application/json' } }),
-            fetch('/api/payment-settings', { headers: { Accept: 'application/json' } }),
-            fetch('/api/notification-settings', { headers: { Accept: 'application/json' } }),
-            fetch('/api/tenant-settings', { headers: { Accept: 'application/json' } }),
+            isSeller ? Promise.resolve(null) : fetch('/api/payment-settings', { headers: { Accept: 'application/json' } }),
+            isSeller ? Promise.resolve(null) : fetch('/api/notification-settings', { headers: { Accept: 'application/json' } }),
+            isSeller ? Promise.resolve(null) : fetch('/api/tenant-settings', { headers: { Accept: 'application/json' } }),
         ]);
 
-        const me = await meResponse.json();
-        const paymentSettings = await settingsResponse.json();
-        const notificationData = await notificationsResponse.json();
-        const tenantData = await tenantResponse.json();
+        const paymentSettings = settingsResponse ? await settingsResponse.json() : { sandbox: true, statement_descriptor: 'STORE TI', configured: false };
+        const notificationData = notificationsResponse ? await notificationsResponse.json() : { settings: {}, contacts: [], logs: [] };
+        const tenantData = tenantResponse ? await tenantResponse.json() : me.tenant || {};
         setCurrentUser(me);
         setProducts(await productsResponse.json());
         setLinks(await linksResponse.json());
@@ -562,6 +563,12 @@ function App() {
         document.documentElement.style.setProperty('--checkout-button-color', tenant.checkout_button_color || '#43c97b');
     }, [tenant]);
 
+    useEffect(() => {
+        if (currentUser?.role === 'seller' && !['dashboard', 'sales'].includes(activeSection)) {
+            setActiveSection('dashboard');
+        }
+    }, [currentUser, activeSection]);
+
     async function reloadAll() {
         await Promise.all([
             loadData(),
@@ -570,6 +577,10 @@ function App() {
     }
 
     async function loadReports(period = reportPeriod) {
+        if (currentUser?.role === 'seller') {
+            return;
+        }
+
         const params = new URLSearchParams(period);
         const response = await fetch(`/api/reports?${params.toString()}`, { headers: { Accept: 'application/json' } });
 
@@ -1469,6 +1480,8 @@ function App() {
     }
 
     const hasCompanyContext = currentUser?.role !== 'superadmin' || Boolean(tenant?.id);
+    const isSellerUser = currentUser?.role === 'seller';
+    const canManageCompany = hasCompanyContext && !isSellerUser;
 
     return (
         <main className="admin-shell">
@@ -1483,24 +1496,30 @@ function App() {
                     </button>
                     {hasCompanyContext && (
                         <>
-                            <button className={activeSection === 'reports' ? 'active' : ''} onClick={() => setActiveSection('reports')}>
-                                <FileText size={18} /> Relatorios
-                            </button>
+                            {canManageCompany && (
+                                <button className={activeSection === 'reports' ? 'active' : ''} onClick={() => setActiveSection('reports')}>
+                                    <FileText size={18} /> Relatorios
+                                </button>
+                            )}
                             <button className={activeSection === 'sales' ? 'active' : ''} onClick={() => setActiveSection('sales')}>
                                 <ShoppingCart size={18} /> Vendas
                             </button>
-                            <button className={activeSection === 'products' ? 'active' : ''} onClick={() => setActiveSection('products')}>
-                                <Box size={18} /> Produtos
-                            </button>
-                            <button className={activeSection === 'customers' ? 'active' : ''} onClick={() => setActiveSection('customers')}>
-                                <Users size={18} /> Clientes
-                            </button>
-                            <button className={activeSection === 'settings' ? 'active' : ''} onClick={() => setActiveSection('settings')}>
-                                <Settings size={18} /> Configuracoes
-                            </button>
-                            <button className={activeSection === 'notifications' ? 'active' : ''} onClick={() => setActiveSection('notifications')}>
-                                <Bell size={18} /> Notificacoes
-                            </button>
+                            {canManageCompany && (
+                                <>
+                                    <button className={activeSection === 'products' ? 'active' : ''} onClick={() => setActiveSection('products')}>
+                                        <Box size={18} /> Produtos
+                                    </button>
+                                    <button className={activeSection === 'customers' ? 'active' : ''} onClick={() => setActiveSection('customers')}>
+                                        <Users size={18} /> Clientes
+                                    </button>
+                                    <button className={activeSection === 'settings' ? 'active' : ''} onClick={() => setActiveSection('settings')}>
+                                        <Settings size={18} /> Configuracoes
+                                    </button>
+                                    <button className={activeSection === 'notifications' ? 'active' : ''} onClick={() => setActiveSection('notifications')}>
+                                        <Bell size={18} /> Notificacoes
+                                    </button>
+                                </>
+                            )}
                         </>
                     )}
                     {(currentUser?.role === 'superadmin' || currentUser?.role === 'admin') && (
@@ -1603,7 +1622,7 @@ function App() {
                     )
                 )}
 
-                {activeSection === 'reports' && (
+                {activeSection === 'reports' && canManageCompany && (
                     <ReportsPanel
                         reports={reports}
                         reportPeriod={reportPeriod}
@@ -1639,7 +1658,7 @@ function App() {
                     </>
                 )}
 
-                {activeSection === 'products' && (
+                {activeSection === 'products' && canManageCompany && (
                     <>
                     <section className="product-overview">
                         <StatusTile label="Ativos" value={productOverview.active} tone="ready" />
@@ -1848,7 +1867,7 @@ function App() {
                     </>
                 )}
 
-                {activeSection === 'customers' && hasCompanyContext && (
+                {activeSection === 'customers' && canManageCompany && (
                     <section className="listing-page customers-page">
                         <section className="panel customer-list-panel">
                             <div className="users-table-toolbar">
@@ -1953,7 +1972,7 @@ function App() {
                     </section>
                 )}
 
-                {activeSection === 'settings' && hasCompanyContext && (
+                {activeSection === 'settings' && canManageCompany && (
                     <section className="listing-page admin-config-page">
                         <section className="panel config-list-panel">
                             <div className="users-table-toolbar">
@@ -2752,7 +2771,7 @@ function App() {
                     </section>
                 )}
 
-                {activeSection === 'notifications' && (
+                {activeSection === 'notifications' && canManageCompany && (
                     <form className="notifications-layout notifications-admin-page" onSubmit={submitNotifications}>
                         <section className="panel notification-list-panel">
                             <div className="users-table-toolbar">
