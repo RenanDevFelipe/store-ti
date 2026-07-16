@@ -10,11 +10,6 @@ use Illuminate\Http\JsonResponse;
 
 class PublicStorefrontController extends Controller
 {
-    public function page(): mixed
-    {
-        return view('app');
-    }
-
     public function show(string $slug): JsonResponse
     {
         $tenant = TenantSetting::where('store_slug', $slug)
