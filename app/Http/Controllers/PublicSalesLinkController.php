@@ -3,10 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Models\SalesLink;
-use App\Models\PaymentSetting;
 use App\Models\TenantSetting;
 use App\Services\EvolutionNotificationService;
-use App\Services\MercadoPagoCheckoutService;
+use App\Services\PaymentCheckoutService;
 use App\Rules\ValidCpf;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -25,15 +24,14 @@ class PublicSalesLinkController extends Controller
         return response()->json([
             ...$salesLink->toArray(),
             'tenant' => $this->tenantPayload($salesLink->product?->tenant ?: TenantSetting::current()),
-            'payment_configured' => ($salesLink->product?->tenant ?: TenantSetting::current())->active_payment_provider === 'mercado_pago'
-                && PaymentSetting::mercadoPago()->configured(),
+            'payment_configured' => app(PaymentCheckoutService::class)->configured($salesLink->product?->tenant ?: TenantSetting::current()),
         ]);
     }
 
     public function pix(
         Request $request,
         SalesLink $salesLink,
-        MercadoPagoCheckoutService $checkout,
+        PaymentCheckoutService $checkout,
         EvolutionNotificationService $notifications
     ): JsonResponse
     {
@@ -99,19 +97,10 @@ class PublicSalesLinkController extends Controller
             ], 422);
         }
 
-        $transactionData = data_get($payment->raw_payload, 'point_of_interaction.transaction_data', []);
-
-        return response()->json([
-            'payment_id' => $payment->mp_payment_id,
-            'status' => $payment->status,
-            'status_detail' => $payment->status_detail,
-            'qr_code' => $transactionData['qr_code'] ?? null,
-            'qr_code_base64' => $transactionData['qr_code_base64'] ?? null,
-            'ticket_url' => $transactionData['ticket_url'] ?? null,
-        ], 201);
+        return response()->json($checkout->response($payment->load('salesLink')), 201);
     }
 
-    public function status(SalesLink $salesLink, MercadoPagoCheckoutService $checkout): JsonResponse
+    public function status(SalesLink $salesLink, PaymentCheckoutService $checkout): JsonResponse
     {
         abort_unless(($salesLink->product?->tenant ?: TenantSetting::current())->active, 404);
 
@@ -138,7 +127,7 @@ class PublicSalesLinkController extends Controller
         ]);
     }
 
-    public function checkout(SalesLink $salesLink, MercadoPagoCheckoutService $checkout): RedirectResponse
+    public function checkout(SalesLink $salesLink, PaymentCheckoutService $checkout): RedirectResponse
     {
         abort_unless(auth('customer')->user(), 401, 'Entre na sua conta de cliente para comprar.');
 
@@ -146,18 +135,18 @@ class PublicSalesLinkController extends Controller
         abort_unless(($salesLink->product?->tenant ?: TenantSetting::current())->active, 404);
 
         try {
-            $salesLink = $checkout->createPreference($salesLink->load('product'));
+            $checkoutUrl = $checkout->checkoutUrl($salesLink->load('product'));
         } catch (RuntimeException) {
             return redirect()->route('public.sales-link.page', $salesLink)
                 ->with('payment_error', 'Nao foi possivel gerar o pagamento agora.');
         }
 
-        if (! $salesLink->checkout_url) {
+        if (! $checkoutUrl) {
             return redirect()->route('public.sales-link.page', $salesLink)
                 ->with('payment_error', 'Pagamento ainda nao configurado.');
         }
 
-        return redirect()->away($salesLink->checkout_url);
+        return redirect()->away($checkoutUrl);
     }
 
     private function tenantPayload(TenantSetting $tenant): array

@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\StoreThemeController;
 use App\Http\Controllers\Api\TenantSettingsController;
 use App\Http\Controllers\Api\UserManagementController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
+use App\Http\Controllers\AsaasWebhookController;
 use App\Http\Controllers\MercadoPagoWebhookController;
 use App\Http\Controllers\PublicCustomerAuthController;
 use App\Http\Controllers\PublicProductCheckoutController;
@@ -20,6 +21,7 @@ use App\Http\Controllers\PublicStorefrontController;
 use Illuminate\Support\Facades\Route;
 
 Route::post('webhooks/mercado-pago', MercadoPagoWebhookController::class)->name('mercadopago.webhook');
+Route::post('webhooks/asaas/{tenant}', AsaasWebhookController::class)->name('asaas.webhook');
 
 Route::get('auth/session', fn () => response()->json([
     'authenticated' => auth('customer')->check(),

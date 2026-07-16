@@ -2,10 +2,10 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\PaymentSetting;
 use App\Models\Product;
 use App\Models\StoreTheme;
 use App\Models\TenantSetting;
+use App\Services\PaymentCheckoutService;
 use Illuminate\Http\JsonResponse;
 
 class PublicStorefrontController extends Controller
@@ -76,8 +76,7 @@ class PublicStorefrontController extends Controller
                 'checkout_primary_color' => $tenant->checkout_primary_color,
                 'checkout_button_color' => $tenant->checkout_button_color,
                 'payment_provider_label' => TenantSetting::PAYMENT_PROVIDERS[$tenant->active_payment_provider] ?? $tenant->active_payment_provider,
-                'payment_configured' => $tenant->active_payment_provider === 'mercado_pago'
-                    && PaymentSetting::mercadoPago()->configured(),
+                'payment_configured' => app(PaymentCheckoutService::class)->configured($tenant),
             ],
             'products' => $products,
         ]);

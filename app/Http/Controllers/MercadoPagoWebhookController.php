@@ -38,6 +38,8 @@ class MercadoPagoWebhookController extends Controller
             ['mp_payment_id' => (string) $payment->id],
             [
                 'sales_link_id' => $salesLink->id,
+                'provider' => 'mercado_pago',
+                'provider_payment_id' => (string) $payment->id,
                 'status' => $effectiveStatus,
                 'status_detail' => isset($payment->status_detail) ? $payment->status_detail : null,
                 'payment_method_id' => isset($payment->payment_method_id) ? $payment->payment_method_id : null,

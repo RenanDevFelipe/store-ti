@@ -13,6 +13,7 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->validateCsrfTokens(except: [
             'webhooks/mercado-pago',
+            'webhooks/asaas/*',
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

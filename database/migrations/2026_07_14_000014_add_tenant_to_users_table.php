@@ -10,11 +10,23 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::table('users', function (Blueprint $table): void {
-            $table->foreignId('tenant_setting_id')->nullable()->after('id')->constrained('tenant_settings')->nullOnDelete();
-        });
+        if (! Schema::hasColumn('users', 'tenant_setting_id')) {
+            Schema::table('users', function (Blueprint $table): void {
+                $table->foreignId('tenant_setting_id')->nullable()->after('id')->constrained('tenant_settings')->nullOnDelete();
+            });
+        }
 
-        $currentTenantId = TenantSetting::current()->id;
+        $currentTenantId = DB::table('tenant_settings')->where('is_current', true)->value('id');
+
+        if (! $currentTenantId) {
+            $currentTenantId = DB::table('tenant_settings')->insertGetId([
+                'name' => 'Store TI',
+                'is_current' => true,
+                'payment_providers' => json_encode(TenantSetting::defaultProviders()),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        }
 
         DB::table('users')
             ->whereNull('tenant_setting_id')

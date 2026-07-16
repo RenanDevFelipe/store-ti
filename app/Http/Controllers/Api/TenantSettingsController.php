@@ -227,7 +227,7 @@ class TenantSettingsController extends Controller
             $providers[$key]['enabled'] = (bool) data_get($data, "payment_providers.$key.enabled", $provider['enabled']);
             $providers[$key]['configured'] = $key === 'mercado_pago'
                 ? PaymentSetting::mercadoPago()->configured()
-                : collect(TenantSetting::credentialFields($key))
+                : collect(TenantSetting::requiredCredentialFields($key))
                     ->every(fn (string $field) => filled(data_get($credentials, "$key.$field")));
         }
 

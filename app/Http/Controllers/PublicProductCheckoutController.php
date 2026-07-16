@@ -2,13 +2,12 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\PaymentSetting;
 use App\Models\Product;
 use App\Models\SalesLink;
 use App\Models\TenantSetting;
 use App\Rules\ValidCpf;
 use App\Services\EvolutionNotificationService;
-use App\Services\MercadoPagoCheckoutService;
+use App\Services\PaymentCheckoutService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use RuntimeException;
@@ -26,15 +25,14 @@ class PublicProductCheckoutController extends Controller
             'discount_amount_cents' => $product->discountAmountCents(),
             'final_amount_cents' => $product->finalAmountCents(),
             'tenant' => $this->tenantPayload($product->tenant ?: TenantSetting::current()),
-            'payment_configured' => ($product->tenant ?: TenantSetting::current())->active_payment_provider === 'mercado_pago'
-                && PaymentSetting::mercadoPago()->configured(),
+            'payment_configured' => app(PaymentCheckoutService::class)->configured($product->tenant ?: TenantSetting::current()),
         ]);
     }
 
     public function pix(
         Request $request,
         string $publicId,
-        MercadoPagoCheckoutService $checkout,
+        PaymentCheckoutService $checkout,
         EvolutionNotificationService $notifications
     ): JsonResponse
     {
@@ -133,20 +131,10 @@ class PublicProductCheckoutController extends Controller
             ], 422);
         }
 
-        $transactionData = data_get($payment->raw_payload, 'point_of_interaction.transaction_data', []);
-
-        return response()->json([
-            'sale_id' => $salesLink->public_id,
-            'payment_id' => $payment->mp_payment_id,
-            'status' => $payment->status,
-            'status_detail' => $payment->status_detail,
-            'qr_code' => $transactionData['qr_code'] ?? null,
-            'qr_code_base64' => $transactionData['qr_code_base64'] ?? null,
-            'ticket_url' => $transactionData['ticket_url'] ?? null,
-        ], 201);
+        return response()->json($checkout->response($payment->load('salesLink')), 201);
     }
 
-    public function status(string $publicId, Request $request, MercadoPagoCheckoutService $checkout): JsonResponse
+    public function status(string $publicId, Request $request, PaymentCheckoutService $checkout): JsonResponse
     {
         $salesLink = SalesLink::where('public_id', $request->query('sale'))->first();
         $payment = $salesLink?->payments()->latest()->first();

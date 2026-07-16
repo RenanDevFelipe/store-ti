@@ -155,13 +155,22 @@ class TenantSetting extends Model
     {
         return match ($provider) {
             'mercado_pago' => ['access_token', 'public_key'],
-            'asaas', 'abacate_pay', 'iugu' => ['api_key'],
+            'asaas' => ['api_key', 'webhook_token'],
+            'abacate_pay', 'iugu' => ['api_key'],
             'efi' => ['client_id', 'client_secret', 'certificate_path'],
             'pagseguro' => ['token', 'email'],
             'pagarme', 'stripe' => ['secret_key', 'public_key'],
             'paypal' => ['client_id', 'client_secret'],
             'banco_do_brasil', 'itau', 'sicredi' => ['client_id', 'client_secret', 'pix_key'],
             default => ['api_key'],
+        };
+    }
+
+    public static function requiredCredentialFields(string $provider): array
+    {
+        return match ($provider) {
+            'asaas' => ['api_key'],
+            default => self::credentialFields($provider),
         };
     }
 

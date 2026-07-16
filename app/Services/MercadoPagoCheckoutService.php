@@ -140,6 +140,8 @@ class MercadoPagoCheckoutService
             ['mp_payment_id' => $paymentId],
             [
                 'sales_link_id' => $salesLink->id,
+                'provider' => 'mercado_pago',
+                'provider_payment_id' => $paymentId,
                 'status' => $status,
                 'status_detail' => $this->resourceValue($mpPayment, $content, 'status_detail'),
                 'payment_method_id' => $this->resourceValue($mpPayment, $content, 'payment_method_id') ?? 'pix',
@@ -285,11 +287,13 @@ class MercadoPagoCheckoutService
 
     private function isPublicHttpUrl(string $url): bool
     {
+        $configuredHost = parse_url((string) config('app.url'), PHP_URL_HOST);
         $scheme = parse_url($url, PHP_URL_SCHEME);
         $host = parse_url($url, PHP_URL_HOST);
 
         return in_array($scheme, ['http', 'https'], true)
             && filled($host)
+            && ! in_array($configuredHost, ['localhost', '127.0.0.1', '::1'], true)
             && ! in_array($host, ['localhost', '127.0.0.1', '::1'], true);
     }
 

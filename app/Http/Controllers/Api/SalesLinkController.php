@@ -3,11 +3,10 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\PaymentSetting;
 use App\Models\Product;
 use App\Models\SalesLink;
 use App\Models\TenantSetting;
-use App\Services\MercadoPagoCheckoutService;
+use App\Services\PaymentCheckoutService;
 use App\Services\SalesLinkPricing;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -17,7 +16,7 @@ class SalesLinkController extends Controller
 {
     public function __construct(
         private readonly SalesLinkPricing $pricing,
-        private readonly MercadoPagoCheckoutService $checkout,
+        private readonly PaymentCheckoutService $checkout,
     ) {}
 
     public function index(Request $request): JsonResponse
@@ -59,6 +58,7 @@ class SalesLinkController extends Controller
             $discountValueCents,
             $discountPercent
         );
+        $paymentConfigured = $this->checkout->configured($product->tenant ?: TenantSetting::current());
 
         $salesLink = SalesLink::create([
             'product_id' => $product->id,
@@ -70,10 +70,10 @@ class SalesLinkController extends Controller
             'discount_value_cents' => $discountValueCents,
             'discount_percent' => $discountPercent,
             'expires_at' => $data['expires_at'] ?? null,
-            'status' => PaymentSetting::mercadoPago()->configured() ? 'ready' : 'draft',
-            'metadata' => PaymentSetting::mercadoPago()->configured()
+            'status' => $paymentConfigured ? 'ready' : 'draft',
+            'metadata' => $paymentConfigured
                 ? ['payment_setup' => 'configured']
-                : ['payment_setup' => 'missing_mercado_pago_access_token'],
+                : ['payment_setup' => 'missing_provider_credentials'],
             ...$amounts,
         ]);
 
